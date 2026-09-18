@@ -16,6 +16,11 @@ Desktop simulator for FTC robot code (see README.md for usage). Key facts for wo
   classpath are not kept (the test classpath only has Pedro when `-Prepo` points at a repo using it).
 - Scratch checkouts used during development live in the session scratchpad (`decode`, `ftcrc`, `pedro`).
 
+- Java toolchain (root build.gradle.kts): the JVM running Gradle is used when it is a JDK >= 17 with a
+  compiler; otherwise a JDK 21 toolchain (installed or foojay-downloaded) compiles and runs everything.
+  `-Pftcsim.jdk=N` forces a version. api.foojay.io is blocked in the sandbox, so test the download path
+  only on a real machine; `-Pftcsim.jdk=21` exercises the installed-JDK path here.
+
 ## Architecture rules
 - Real SDK classes are used wherever possible; only hardware/Android-bound classes are shadowed
   (list in `ftc-sdk/shadowed-classes.txt`; the shadow must live at the same FQN in `sim/`).

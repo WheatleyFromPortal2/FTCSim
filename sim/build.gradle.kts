@@ -154,7 +154,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
 
     for (d in teamDeps) {
-        val (g, a, _) = d.notation.split(":")
+        val g = d.notation.substringBefore(":")
         val isPresent = teamRuntime.excludeRules.any { it.group == g }
         if (!isPresent) {
             logger.lifecycle("FTCSim: team dependency $d")

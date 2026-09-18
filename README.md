@@ -14,8 +14,12 @@ telemetry and FTC Dashboard work as they do on the robot.
 
 ## Requirements
 
-* JDK 17 or newer (JDK 21 is what the project is developed with)
-* Network access to Maven Central the first time (the SDK artifacts are cached afterwards)
+* A JDK 17 or newer (JDK 21 is what the project is developed with). The `java` on your path does not
+  have to be that JDK: when Gradle is started from an older Java or from a JRE, the build picks an
+  installed JDK 21 or downloads one (Gradle toolchains with the foojay resolver). Force a version with
+  `-Pftcsim.jdk=21`, or point `JAVA_HOME` at the JDK you want Gradle itself to run on.
+* Network access to Maven Central (and to the Gradle plugin portal / api.foojay.io for the toolchain
+  plugin) the first time; everything is cached afterwards.
 * A modern browser (Chrome, Edge, Firefox). A physical gamepad works through the browser Gamepad API.
 
 ## Running

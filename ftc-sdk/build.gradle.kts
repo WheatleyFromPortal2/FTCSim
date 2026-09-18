@@ -65,6 +65,7 @@ val desktopSdkJar by tasks.registering {
         var stripped = 0
         ZipOutputStream(out.outputStream().buffered()).use { zos ->
             fun copyJar(jarBytes: ByteArray, label: String) {
+                logger.debug("ftc-sdk: reading {}", label)
                 val tmp = File.createTempFile("ftcsim-", ".jar")
                 try {
                     tmp.writeBytes(jarBytes)
