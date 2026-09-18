@@ -1,0 +1,14 @@
+# Classes removed from the desktop SDK jar because FTCSim provides its own
+# implementation (same fully-qualified name) in the sim module.
+# One prefix per line; a class is stripped if its binary name equals the prefix
+# or starts with the prefix followed by '$' (nested classes).
+com.qualcomm.robotcore.util.RobotLog
+com.qualcomm.hardware.lynx.LynxModule
+com.qualcomm.hardware.limelightvision.Limelight3A
+com.qualcomm.ftccommon.SoundPlayer
+org.firstinspires.ftc.vision.VisionPortalImpl
+org.firstinspires.ftc.vision.apriltag.AprilTagProcessorImpl
+org.firstinspires.ftc.robotcore.internal.system.AppUtil
+org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessorImpl
+org.firstinspires.ftc.vision.opencv.PredominantColorProcessorImpl
+org.openftc.easyopencv.OpenCvCameraFactory

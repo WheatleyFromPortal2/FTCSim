@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FTCSim</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">FTC<span>Sim</span></div>
+  <div class="meta" id="repoMeta">connecting…</div>
+  <div class="spacer"></div>
+  <div class="pill" id="buildPill" title="Team code build status">build</div>
+  <button id="reloadBtn" title="Recompile the team code (R)">⟳ Reload code</button>
+  <div class="pill" id="batteryPill" title="Battery voltage / total current">12.8 V</div>
+  <div class="pill" id="simPill" title="Physics step rate">1000 Hz</div>
+  <button id="pauseBtn" title="Pause / resume the physics">⏸ Pause</button>
+  <div class="pill" id="connPill">offline</div>
+</header>
+
+<main id="layout">
+  <section id="left" class="panel">
+    <h2>Driver Station</h2>
+    <div class="ds">
+      <select id="opmodeSelect" size="1"></select>
+      <div class="ds-buttons">
+        <button id="initBtn" class="primary">INIT</button>
+        <button id="startBtn" class="go">▶ START</button>
+        <button id="stopBtn" class="stop">■ STOP</button>
+      </div>
+      <div class="ds-row">
+        <span class="state-pill" id="statePill">IDLE</span>
+        <span id="runtime" class="mono">0.0 s</span>
+        <label class="chk"><input type="checkbox" id="timerChk"> Match timer</label>
+        <span id="timerRemaining" class="mono"></span>
+      </div>
+      <button id="restartBtn" class="stop hidden">Restart Robot</button>
+      <pre id="errorBox" class="errorbox hidden"></pre>
+      <div id="warnBox" class="warnbox hidden"></div>
+    </div>
+    <div class="tabs" id="telemetryTabs">
+      <button data-tab="ds" class="active">Telemetry</button>
+      <button data-tab="panels">Panels</button>
+      <button data-tab="dashboard">Dashboard</button>
+    </div>
+    <pre id="telemetry" class="telemetry"></pre>
+  </section>
+
+  <section id="center" class="panel">
+    <div class="field-toolbar">
+      <span class="mono" id="poseFtc">FTC x 0.0 y 0.0 θ 0°</span>
+      <span class="mono" id="posePedro">Pedro x 0.0 y 0.0 θ 0°</span>
+      <span class="spacer"></span>
+      <label>Frame <select id="frameSelect"><option value="ftc">FTC</option><option value="pedro">Pedro</option></select></label>
+      <input id="poseX" type="number" step="0.5" placeholder="x" title="x (in)">
+      <input id="poseY" type="number" step="0.5" placeholder="y" title="y (in)">
+      <input id="poseH" type="number" step="5" placeholder="θ°" title="heading (deg)">
+      <button id="setPoseBtn">Set pose</button>
+      <button id="saveStartBtn" title="Use the current pose as the start pose">Save as start</button>
+      <button id="resetPoseBtn" title="Move the robot back to the start pose">Reset</button>
+    </div>
+    <div class="field-wrap"><canvas id="field" width="800" height="800"></canvas></div>
+    <div class="field-toolbar bottom">
+      <label class="chk"><input type="checkbox" id="trailChk" checked> Trail</label>
+      <label class="chk"><input type="checkbox" id="labelsChk" checked> Labels</label>
+      <label>View <select id="rotateSelect"><option value="0">goal wall left</option><option value="90">goal wall bottom</option><option value="180">goal wall right</option><option value="270">goal wall top</option></select></label>
+      <label>Obelisk <select id="obeliskSelect"><option value="21">21 (GPP)</option><option value="22">22 (PGP)</option><option value="23">23 (PPG)</option></select></label>
+      <span class="hint">drag robot to move · shift+drag or wheel to rotate</span>
+    </div>
+  </section>
+
+  <section id="right" class="panel">
+    <div class="tabs" id="rightTabs">
+      <button data-tab="hardware" class="active">Hardware</button>
+      <button data-tab="config">Configurables</button>
+      <button data-tab="graph">Graph</button>
+      <button data-tab="log">Log</button>
+      <button data-tab="robot">Robot config</button>
+    </div>
+    <div id="tab-hardware" class="tab active"><div id="devices"></div></div>
+    <div id="tab-config" class="tab"><div id="configurables"><p class="hint">Classes annotated with <code>@Configurable</code> (Panels) or <code>@Config</code> (FTC Dashboard) appear here once the team code is built.</p></div></div>
+    <div id="tab-graph" class="tab"><canvas id="graph" width="360" height="300"></canvas><div id="graphLegend"></div></div>
+    <div id="tab-log" class="tab">
+      <div class="log-toolbar">
+        <select id="logLevel"><option value="0">verbose</option><option value="1">debug</option><option value="2" selected>info</option><option value="3">warn</option><option value="4">error</option></select>
+        <input id="logFilter" placeholder="filter…">
+        <button id="logClear">clear</button>
+      </div>
+      <pre id="log" class="log"></pre>
+    </div>
+    <div id="tab-robot" class="tab">
+      <p class="hint">Robot configuration JSON (<span id="configFile"></span>). Devices used by the team code that are missing here are auto-created. Save then restart FTCSim to apply.</p>
+      <textarea id="configText" spellcheck="false"></textarea>
+      <div class="ds-buttons"><button id="configLoadBtn">Load</button><button id="configSaveBtn" class="primary">Save</button><button id="configSaveCurrentBtn" title="Write the live configuration including auto-created devices">Save current</button></div>
+      <pre id="buildDiag" class="log"></pre>
+    </div>
+  </section>
+
+  <section id="bottom" class="panel">
+    <div class="gamepads">
+      <div class="gamepad" id="gp1" data-id="1"></div>
+      <div class="gamepad" id="gp2" data-id="2"></div>
+    </div>
+  </section>
+</main>
+<div id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>
