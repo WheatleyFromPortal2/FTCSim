@@ -17,7 +17,7 @@ public class SimBlinkin extends RevBlinkinLedDriver implements SimDevice {
         super(controller, port);
         this.simController = controller; this.port = port; this.state = state; this.name = name;
     }
-    @Override public void setPattern(BlinkinPattern p) { pattern = p; super.setPattern(p); }
+    @Override public void setPattern(BlinkinPattern p) { pattern = p; super.setPattern(p); HardwareBus.write(); }
     @Override public String getDeviceName() { return "REV Blinkin LED Driver"; }
     @Override public String getConnectionInfo() { return simController.hub().getName() + "; servo port " + port; }
     @Override public String simName() { return name; }

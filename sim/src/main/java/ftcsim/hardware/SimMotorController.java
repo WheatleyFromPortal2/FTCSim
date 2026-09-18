@@ -60,6 +60,7 @@ public class SimMotorController implements DcMotorControllerEx, LynxModule.BulkP
     @Override public MotorConfigurationType getMotorType(int port) { return types[port]; }
     @Override public void setMotorMode(int port, DcMotor.RunMode mode) {
         MotorState st = s(port);
+        HardwareBus.write();
         if (mode == DcMotor.RunMode.STOP_AND_RESET_ENCODER) { st.resetEncoder(); st.power = 0; }
         if (mode != st.mode) { st.velocityPidf.reset(); st.useVelocityTarget = false; }
         st.mode = mode;
@@ -67,12 +68,13 @@ public class SimMotorController implements DcMotorControllerEx, LynxModule.BulkP
     @Override public DcMotor.RunMode getMotorMode(int port) { return s(port).mode; }
     @Override public void setMotorPower(int port, double power) {
         MotorState st = s(port);
+        HardwareBus.write();
         st.power = Math.max(-1, Math.min(1, power));
         st.useVelocityTarget = false;
     }
     @Override public double getMotorPower(int port) { return s(port).power; }
     @Override public boolean isBusy(int port) { MotorState st = s(port); return hub.bulkRead("busy/" + port, st::isBusy, d -> d.isMotorBusy(port)); }
-    @Override public void setMotorZeroPowerBehavior(int port, DcMotor.ZeroPowerBehavior zeroPowerBehavior) { s(port).zeroPowerBehavior = zeroPowerBehavior; }
+    @Override public void setMotorZeroPowerBehavior(int port, DcMotor.ZeroPowerBehavior zeroPowerBehavior) { s(port).zeroPowerBehavior = zeroPowerBehavior; HardwareBus.write(); }
     @Override public DcMotor.ZeroPowerBehavior getMotorZeroPowerBehavior(int port) { return s(port).zeroPowerBehavior; }
     @Override public boolean getMotorPowerFloat(int port) { MotorState st = s(port); return st.zeroPowerBehavior == DcMotor.ZeroPowerBehavior.FLOAT && st.power == 0; }
     @Override public void setMotorTargetPosition(int port, int position) { setMotorTargetPosition(port, position, s(port).targetTolerance); }
@@ -81,11 +83,12 @@ public class SimMotorController implements DcMotorControllerEx, LynxModule.BulkP
     @Override public void resetDeviceConfigurationForOpMode(int port) { MotorState st = ports[port]; if (st != null) { st.resetForOpMode(); applyType(port, types[port]); } }
 
     // ---- DcMotorControllerEx ----
-    @Override public void setMotorEnable(int port) { s(port).enabled = true; }
-    @Override public void setMotorDisable(int port) { s(port).enabled = false; }
+    @Override public void setMotorEnable(int port) { s(port).enabled = true; HardwareBus.write(); }
+    @Override public void setMotorDisable(int port) { s(port).enabled = false; HardwareBus.write(); }
     @Override public boolean isMotorEnabled(int port) { return s(port).enabled; }
     @Override public void setMotorVelocity(int port, double ticksPerSecond) {
         MotorState st = s(port);
+        HardwareBus.write();
         st.targetVelocityTps = ticksPerSecond;
         st.useVelocityTarget = true;
         st.mode = DcMotor.RunMode.RUN_USING_ENCODER;
@@ -104,22 +107,25 @@ public class SimMotorController implements DcMotorControllerEx, LynxModule.BulkP
     @Override public void setPIDCoefficients(int port, DcMotor.RunMode mode, PIDCoefficients pid) { setPIDFCoefficients(port, mode, new PIDFCoefficients(pid)); }
     @Override public void setPIDFCoefficients(int port, DcMotor.RunMode mode, PIDFCoefficients pidf) {
         MotorState st = s(port);
+        HardwareBus.write();
         if (mode == DcMotor.RunMode.RUN_TO_POSITION) st.positionP = pidf.p;
         else st.velocityPidf.set(pidf.p, pidf.i, pidf.d, pidf.f);
     }
     @Override public PIDCoefficients getPIDCoefficients(int port, DcMotor.RunMode mode) { PIDFCoefficients c = getPIDFCoefficients(port, mode); return new PIDCoefficients(c.p, c.i, c.d); }
     @Override public PIDFCoefficients getPIDFCoefficients(int port, DcMotor.RunMode mode) {
         MotorState st = s(port);
+        HardwareBus.read();
         if (mode == DcMotor.RunMode.RUN_TO_POSITION) return new PIDFCoefficients(st.positionP, 0, 0, 0);
         return new PIDFCoefficients(st.velocityPidf.p, st.velocityPidf.i, st.velocityPidf.d, st.velocityPidf.f);
     }
     @Override public void setMotorTargetPosition(int port, int position, int tolerance) {
         MotorState st = s(port);
+        HardwareBus.write();
         st.targetPosition = position; st.targetTolerance = tolerance; st.targetPositionSet = true;
     }
-    @Override public double getMotorCurrent(int port, CurrentUnit unit) { return unit.convert(s(port).currentAmps(), CurrentUnit.AMPS); }
+    @Override public double getMotorCurrent(int port, CurrentUnit unit) { double a = s(port).currentAmps(); HardwareBus.read(); return unit.convert(a, CurrentUnit.AMPS); }
     @Override public double getMotorCurrentAlert(int port, CurrentUnit unit) { return unit.convert(s(port).currentAlertAmps, CurrentUnit.AMPS); }
-    @Override public void setMotorCurrentAlert(int port, double current, CurrentUnit unit) { s(port).currentAlertAmps = unit.toAmps(current); }
+    @Override public void setMotorCurrentAlert(int port, double current, CurrentUnit unit) { s(port).currentAlertAmps = unit.toAmps(current); HardwareBus.write(); }
     @Override public boolean isMotorOverCurrent(int port) { MotorState st = s(port); return hub.bulkRead("overcurrent/" + port, st::isOverCurrent, d -> d.isMotorOverCurrent(port)); }
 
     // ---- HardwareDevice ----

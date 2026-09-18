@@ -10,7 +10,18 @@
   "assumeTeamDirectionsCorrect": true,
   "emulateVelocityOverflow": true,
   "autoCreateDevices": true,
-  "startPose": { "x": 0.0, "y": 0.0, "headingDeg": 180.0 },
+  "startPose": {
+    "x": 0.0,
+    "y": 0.0,
+    "headingDeg": 180.0
+  },
+  "hardwareLatency": {
+    "enabled": true,
+    "bulkReadMs": 2.0,
+    "writeMs": 2.5,
+    "readMs": 2.0,
+    "i2cMs": 2.5
+  },
   "drivetrain": {
     "type": "mecanum",
     "wheelDiameterIn": 4.094,
@@ -29,34 +40,256 @@
     "rightRear": "backRight"
   },
   "hubs": [
-    { "name": "Control Hub", "address": 173, "parent": true },
-    { "name": "Expansion Hub 2", "address": 2, "parent": false }
+    {
+      "name": "Control Hub",
+      "address": 173,
+      "parent": true
+    },
+    {
+      "name": "Expansion Hub 2",
+      "address": 2,
+      "parent": false
+    }
   ],
   "devices": [
-    { "name": "frontLeft", "type": "DcMotorEx", "hub": "Control Hub", "port": 0, "params": { "motorType": "goBILDA_435" } },
-    { "name": "frontRight", "type": "DcMotorEx", "hub": "Control Hub", "port": 1, "params": { "motorType": "goBILDA_435" } },
-    { "name": "backLeft", "type": "DcMotorEx", "hub": "Control Hub", "port": 2, "params": { "motorType": "goBILDA_435" } },
-    { "name": "backRight", "type": "DcMotorEx", "hub": "Control Hub", "port": 3, "params": { "motorType": "goBILDA_435" } },
-    { "name": "launchLeft", "type": "DcMotorEx", "hub": "Expansion Hub 2", "port": 0, "params": { "motorType": "goBILDA_6000", "inertia": 0.00025, "viscousFriction": 0.00002, "coulombFriction": 0.004 } },
-    { "name": "launchRight", "type": "DcMotorEx", "hub": "Expansion Hub 2", "port": 1, "params": { "motorType": "goBILDA_6000", "inertia": 0.00025, "viscousFriction": 0.00002, "coulombFriction": 0.004 } },
-    { "name": "intakeMotor", "type": "DcMotorEx", "hub": "Expansion Hub 2", "port": 2, "params": { "motorType": "goBILDA_1150", "inertia": 0.0004 } },
-    { "name": "transferMotor", "type": "DcMotorEx", "hub": "Expansion Hub 2", "port": 3, "params": { "motorType": "goBILDA_1150", "inertia": 0.0003 } },
-    { "name": "turret1", "type": "Servo", "hub": "Control Hub", "port": 0, "params": { "secondsFullRange": 1.0 } },
-    { "name": "turret2", "type": "Servo", "hub": "Control Hub", "port": 1, "params": { "secondsFullRange": 1.0 } },
-    { "name": "hoodServo", "type": "Servo", "hub": "Control Hub", "port": 2, "params": { "secondsFullRange": 0.5 } },
-    { "name": "transferServo", "type": "Servo", "hub": "Control Hub", "port": 3, "params": { "secondsFullRange": 0.3 } },
-    { "name": "kickerServo", "type": "Servo", "hub": "Control Hub", "port": 4, "params": { "secondsFullRange": 0.3 } },
-    { "name": "sorterServo", "type": "Servo", "hub": "Control Hub", "port": 5, "params": { "secondsFullRange": 0.3 } },
-    { "name": "light", "type": "Servo", "hub": "Expansion Hub 2", "port": 0, "params": { "secondsFullRange": 0.01 } },
-    { "name": "odo", "type": "GoBildaPinpointDriver", "hub": "Control Hub", "params": { "podType": "swingarm", "xPod": { "x": 0.0, "y": 5.5625 }, "yPod": { "x": -5.28, "y": 0.0 } } },
-    { "name": "imu", "type": "IMU", "hub": "Control Hub" },
-    { "name": "limelight", "type": "Limelight3A", "hub": "Control Hub", "params": { "mount": { "x": 0, "y": 0, "z": 14, "yawDeg": 0, "pitchDeg": 5 }, "hfovDeg": 54.5, "vfovDeg": 42, "maxRangeIn": 160 } },
-    { "name": "intakeSensor", "type": "Rev2mDistanceSensor", "hub": "Expansion Hub 2", "params": { "distanceMm": 300 } },
-    { "name": "lowerTransferSensor", "type": "DigitalChannel", "hub": "Expansion Hub 2", "port": 0, "params": { "state": true } },
-    { "name": "upperTransferSensor", "type": "DigitalChannel", "hub": "Expansion Hub 2", "port": 1, "params": { "state": true } },
-    { "name": "color", "type": "RevColorSensorV3", "hub": "Expansion Hub 2" },
-    { "name": "purplePin", "type": "DigitalChannel", "hub": "Expansion Hub 2", "port": 2, "params": { "state": true } },
-    { "name": "greenPin", "type": "DigitalChannel", "hub": "Expansion Hub 2", "port": 3, "params": { "state": true } },
-    { "name": "analog0", "type": "AnalogInput", "hub": "Expansion Hub 2", "port": 0, "params": { "voltage": 1.2 } }
+    {
+      "name": "frontLeft",
+      "type": "DcMotorEx",
+      "hub": "Control Hub",
+      "port": 0,
+      "params": {
+        "motorType": "goBILDA_435"
+      }
+    },
+    {
+      "name": "frontRight",
+      "type": "DcMotorEx",
+      "hub": "Control Hub",
+      "port": 1,
+      "params": {
+        "motorType": "goBILDA_435"
+      }
+    },
+    {
+      "name": "backLeft",
+      "type": "DcMotorEx",
+      "hub": "Control Hub",
+      "port": 2,
+      "params": {
+        "motorType": "goBILDA_435"
+      }
+    },
+    {
+      "name": "backRight",
+      "type": "DcMotorEx",
+      "hub": "Control Hub",
+      "port": 3,
+      "params": {
+        "motorType": "goBILDA_435"
+      }
+    },
+    {
+      "name": "launchLeft",
+      "type": "DcMotorEx",
+      "hub": "Expansion Hub 2",
+      "port": 0,
+      "params": {
+        "motorType": "goBILDA_6000",
+        "inertia": 0.00025,
+        "viscousFriction": 2e-05,
+        "coulombFriction": 0.004
+      }
+    },
+    {
+      "name": "launchRight",
+      "type": "DcMotorEx",
+      "hub": "Expansion Hub 2",
+      "port": 1,
+      "params": {
+        "motorType": "goBILDA_6000",
+        "inertia": 0.00025,
+        "viscousFriction": 2e-05,
+        "coulombFriction": 0.004
+      }
+    },
+    {
+      "name": "intakeMotor",
+      "type": "DcMotorEx",
+      "hub": "Expansion Hub 2",
+      "port": 2,
+      "params": {
+        "motorType": "goBILDA_1150",
+        "inertia": 0.0004
+      }
+    },
+    {
+      "name": "transferMotor",
+      "type": "DcMotorEx",
+      "hub": "Expansion Hub 2",
+      "port": 3,
+      "params": {
+        "motorType": "goBILDA_1150",
+        "inertia": 0.0003
+      }
+    },
+    {
+      "name": "turret1",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 0,
+      "params": {
+        "secondsFullRange": 1.0
+      }
+    },
+    {
+      "name": "turret2",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 1,
+      "params": {
+        "secondsFullRange": 1.0
+      }
+    },
+    {
+      "name": "hoodServo",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 2,
+      "params": {
+        "secondsFullRange": 0.5
+      }
+    },
+    {
+      "name": "transferServo",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 3,
+      "params": {
+        "secondsFullRange": 0.3
+      }
+    },
+    {
+      "name": "kickerServo",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 4,
+      "params": {
+        "secondsFullRange": 0.3
+      }
+    },
+    {
+      "name": "sorterServo",
+      "type": "Servo",
+      "hub": "Control Hub",
+      "port": 5,
+      "params": {
+        "secondsFullRange": 0.3
+      }
+    },
+    {
+      "name": "light",
+      "type": "Servo",
+      "hub": "Expansion Hub 2",
+      "port": 0,
+      "params": {
+        "secondsFullRange": 0.01
+      }
+    },
+    {
+      "name": "odo",
+      "type": "GoBildaPinpointDriver",
+      "hub": "Control Hub",
+      "params": {
+        "podType": "swingarm",
+        "xPod": {
+          "x": 0.0,
+          "y": 5.5625
+        },
+        "yPod": {
+          "x": -5.28,
+          "y": 0.0
+        }
+      }
+    },
+    {
+      "name": "imu",
+      "type": "IMU",
+      "hub": "Control Hub"
+    },
+    {
+      "name": "limelight",
+      "type": "Limelight3A",
+      "hub": "Control Hub",
+      "params": {
+        "mount": {
+          "x": 0,
+          "y": 0,
+          "z": 14,
+          "yawDeg": 0,
+          "pitchDeg": 5
+        },
+        "hfovDeg": 54.5,
+        "vfovDeg": 42,
+        "maxRangeIn": 160
+      }
+    },
+    {
+      "name": "intakeSensor",
+      "type": "Rev2mDistanceSensor",
+      "hub": "Expansion Hub 2",
+      "params": {
+        "distanceMm": 300
+      }
+    },
+    {
+      "name": "lowerTransferSensor",
+      "type": "DigitalChannel",
+      "hub": "Expansion Hub 2",
+      "port": 0,
+      "params": {
+        "state": true
+      }
+    },
+    {
+      "name": "upperTransferSensor",
+      "type": "DigitalChannel",
+      "hub": "Expansion Hub 2",
+      "port": 1,
+      "params": {
+        "state": true
+      }
+    },
+    {
+      "name": "color",
+      "type": "RevColorSensorV3",
+      "hub": "Expansion Hub 2"
+    },
+    {
+      "name": "purplePin",
+      "type": "DigitalChannel",
+      "hub": "Expansion Hub 2",
+      "port": 2,
+      "params": {
+        "state": true
+      }
+    },
+    {
+      "name": "greenPin",
+      "type": "DigitalChannel",
+      "hub": "Expansion Hub 2",
+      "port": 3,
+      "params": {
+        "state": true
+      }
+    },
+    {
+      "name": "analog0",
+      "type": "AnalogInput",
+      "hub": "Expansion Hub 2",
+      "port": 0,
+      "params": {
+        "voltage": 1.2
+      }
+    }
   ]
 }

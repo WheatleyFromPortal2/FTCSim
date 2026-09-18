@@ -42,16 +42,19 @@ public class SimIMU implements IMU, SimDevice {
         initialized = true;
         return true;
     }
-    @Override public void resetYaw() { yawOffset = chassis.pose().heading + drift; }
-    @Override public YawPitchRollAngles getRobotYawPitchRollAngles() { return new YawPitchRollAngles(AngleUnit.RADIANS, yawRad(), 0, 0, System.nanoTime()); }
+    @Override public void resetYaw() { yawOffset = chassis.pose().heading + drift; HardwareBus.i2c(); }
+    @Override public YawPitchRollAngles getRobotYawPitchRollAngles() { YawPitchRollAngles a = new YawPitchRollAngles(AngleUnit.RADIANS, yawRad(), 0, 0, System.nanoTime()); HardwareBus.i2c(); return a; }
     @Override public Orientation getRobotOrientation(AxesReference reference, AxesOrder order, AngleUnit angleUnit) {
+        HardwareBus.i2c();
         return getRobotOrientationAsQuaternion().toOrientation(reference, order, angleUnit);
     }
     @Override public Quaternion getRobotOrientationAsQuaternion() {
+        HardwareBus.i2c();
         double h = yawRad();
         return new Quaternion((float) Math.cos(h / 2), 0f, 0f, (float) Math.sin(h / 2), System.nanoTime());
     }
     @Override public AngularVelocity getRobotAngularVelocity(AngleUnit angleUnit) {
+        HardwareBus.i2c();
         return new AngularVelocity(angleUnit, 0f, 0f, (float) angleUnit.fromRadians(chassis.omega()), System.nanoTime());
     }
     @Override public Manufacturer getManufacturer() { return Manufacturer.Lynx; }

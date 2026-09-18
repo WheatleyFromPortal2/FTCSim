@@ -76,6 +76,7 @@ public class VisionPortalImpl extends VisionPortal {
     }
 
     private void frameLoop() {
+        ftcsim.hardware.HardwareBus.markExemptThread();
         final Thread self = Thread.currentThread();
         long next = System.nanoTime();
         while (frameThread == self && !self.isInterrupted()) {

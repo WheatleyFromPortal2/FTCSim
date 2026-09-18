@@ -118,20 +118,33 @@ public class LynxModule extends LynxCommExceptionHandler implements LynxModuleIn
      * @param key identifies the read (e.g. "motorpos/2"); used for AUTO mode refresh detection
      */
     public <T> T bulkRead(String key, Supplier<T> live, Function<BulkData, T> fromCache) {
+        // The simulator's own threads (UI, vision) read live values without disturbing the cache or paying for a transaction.
+        if (ftcsim.hardware.HardwareBus.isExempt()) return live.get();
+        T value;
+        boolean refreshed = false, singleRead = false;
         synchronized (bulkCachingLock) {
             switch (bulkCachingMode) {
                 case OFF:
-                    return live.get();
+                    value = live.get();
+                    singleRead = true;
+                    break;
                 case MANUAL:
-                    if (lastBulkData == null) refreshBulkData();
-                    return fromCache.apply(lastBulkData);
+                    if (lastBulkData == null) { refreshBulkData(); refreshed = true; }
+                    value = fromCache.apply(lastBulkData);
+                    break;
                 case AUTO:
                 default:
-                    if (lastBulkData == null || bulkReadsSinceRefresh.contains(key)) refreshBulkData();
+                    if (lastBulkData == null || bulkReadsSinceRefresh.contains(key)) { refreshBulkData(); refreshed = true; }
                     bulkReadsSinceRefresh.add(key);
-                    return fromCache.apply(lastBulkData);
+                    value = fromCache.apply(lastBulkData);
+                    break;
             }
         }
+        // charged after the data is taken, like a real hub: the value is sampled when the transaction starts
+        if (refreshed) ftcsim.hardware.HardwareBus.bulkRead();
+        else if (singleRead) ftcsim.hardware.HardwareBus.read();
+        else ftcsim.hardware.HardwareBus.gate();
+        return value;
     }
 
     private void refreshBulkData() {
@@ -195,7 +208,12 @@ public class LynxModule extends LynxCommExceptionHandler implements LynxModuleIn
     public boolean isCommandSupported(Class<? extends LynxCommand> clazz) { return true; }
     public LynxInterface getInterface(String interfaceName) { return null; }
     public void resetPingTimer(LynxMessage message) {}
-    public BulkData getBulkData() { synchronized (bulkCachingLock) { refreshBulkData(); return lastBulkData; } }
+    public BulkData getBulkData() {
+        BulkData d;
+        synchronized (bulkCachingLock) { refreshBulkData(); d = lastBulkData; }
+        ftcsim.hardware.HardwareBus.bulkRead();
+        return d;
+    }
     public BulkCachingMode getBulkCachingMode() { synchronized (bulkCachingLock) { return bulkCachingMode; } }
     public void setBulkCachingMode(BulkCachingMode mode) {
         synchronized (bulkCachingLock) {

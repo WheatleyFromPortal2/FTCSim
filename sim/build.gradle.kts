@@ -155,7 +155,9 @@ dependencies {
 
     for (d in teamDeps) {
         val g = d.notation.substringBefore(":")
-        val isPresent = teamRuntime.excludeRules.any { it.group == g }
+        // modules FTCSim replaces with its own implementation (Android-bound web tuner)
+        val shimmedModules = setOf("com.pedropathing:tuning")
+        val isPresent = teamRuntime.excludeRules.any { it.group == g } || shimmedModules.any { d.notation.startsWith("$it:") }
         if (!isPresent) {
             logger.lifecycle("FTCSim: team dependency $d")
             teamRuntime(d.notation)

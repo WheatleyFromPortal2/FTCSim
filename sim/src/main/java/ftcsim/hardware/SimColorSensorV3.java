@@ -23,21 +23,22 @@ public class SimColorSensorV3 extends RevColorSensorV3 implements SimDevice {
     @Override protected synchronized boolean internalInitialize(Parameters parameters) { return true; }
     @Override public synchronized boolean initialize() { return true; }
     @Override public NormalizedRGBA getNormalizedColors() {
+        HardwareBus.i2c();
         NormalizedRGBA c = new NormalizedRGBA();
         c.red = clamp(r * gain); c.green = clamp(g * gain); c.blue = clamp(b * gain); c.alpha = clamp(a * gain);
         return c;
     }
     private static float clamp(float v) { return Math.max(0f, Math.min(1f, v)); }
-    @Override public synchronized int red() { return Math.round(clamp(r * gain) * 65535); }
-    @Override public synchronized int green() { return Math.round(clamp(g * gain) * 65535); }
-    @Override public synchronized int blue() { return Math.round(clamp(b * gain) * 65535); }
-    @Override public synchronized int alpha() { return Math.round(clamp(a * gain) * 65535); }
-    @Override public synchronized int argb() { return getNormalizedColors().toColor(); }
+    @Override public int red() { HardwareBus.i2c(); synchronized (this) { return Math.round(clamp(r * gain) * 65535); } }
+    @Override public int green() { HardwareBus.i2c(); synchronized (this) { return Math.round(clamp(g * gain) * 65535); } }
+    @Override public int blue() { HardwareBus.i2c(); synchronized (this) { return Math.round(clamp(b * gain) * 65535); } }
+    @Override public int alpha() { HardwareBus.i2c(); synchronized (this) { return Math.round(clamp(a * gain) * 65535); } }
+    @Override public int argb() { return getNormalizedColors().toColor(); }
     @Override public void setGain(float newGain) { gain = newGain; }
     @Override public float getGain() { return gain; }
-    @Override public synchronized void enableLed(boolean enable) { ledOn = enable; }
+    @Override public void enableLed(boolean enable) { ledOn = enable; HardwareBus.i2c(); }
     @Override public boolean isLightOn() { return ledOn; }
-    @Override public double getDistance(DistanceUnit unit) { return unit.fromMm(distanceMm); }
+    @Override public double getDistance(DistanceUnit unit) { HardwareBus.i2c(); return unit.fromMm(distanceMm); }
     @Override public double getLightDetected() { return clamp(a * gain); }
     @Override public double getRawLightDetected() { return clamp(a * gain) * 65535; }
     @Override public double getRawLightDetectedMax() { return 65535; }

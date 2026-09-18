@@ -22,7 +22,8 @@ function send(obj) { if (state.ws && state.ws.readyState === 1) state.ws.send(JS
 
 function handle(m) {
   switch (m.type) {
-    case 'hello': state.hello = m; state.field = m.field; $('repoMeta').textContent = `${m.repoName || 'no repo'} · SDK ${m.sdkVersion} · config ${m.configName}`; $('configFile').textContent = m.configFile; state.trail = []; break;
+    case 'hello': state.hello = m; state.field = m.field; renderFieldOptions(m.field); $('repoMeta').textContent = `${m.repoName || 'no repo'} · SDK ${m.sdkVersion} · config ${m.configName}`; $('configFile').textContent = m.configFile; state.trail = []; break;
+    case 'field': state.field = m.field; renderFieldOptions(m.field); break;
     case 'opmodes': state.opmodes = m.list; state.build = m.build; renderOpModes(); renderBuild(); break;
     case 'buildStatus': state.build = m.build; renderBuild(); break;
     case 'state': state.last = m; onState(m); break;
@@ -72,6 +73,7 @@ $('stopBtn').onclick = () => send({ type: 'opmode.stop' });
 $('restartBtn').onclick = () => send({ type: 'robot.restart' });
 $('timerChk').onchange = (e) => send({ type: 'sim.timer', enabled: e.target.checked });
 $('pauseBtn').onclick = () => { const paused = !(state.last && state.last.sim.paused); send({ type: 'sim.pause', paused }); };
+$('stepBtn').onclick = () => { if (!(state.last && state.last.sim.paused)) send({ type: 'sim.pause', paused: true }); send({ type: 'sim.step', ms: parseFloat($('stepSize').value) }); };
 $('opmodeSelect').ondblclick = () => $('initBtn').click();
 
 function onState(m) {
@@ -87,8 +89,12 @@ function onState(m) {
   const src = state.telemetryTab === 'ds' ? m.telemetry : state.telemetryTab === 'panels' ? m.panels : m.dashboard;
   const tel = $('telemetry'); const txt = (src.lines || []).join('\n'); if (tel.textContent !== txt) tel.textContent = txt;
   $('batteryPill').textContent = m.battery.volts.toFixed(2) + ' V · ' + m.battery.current.toFixed(1) + ' A';
-  $('simPill').textContent = (m.sim.paused ? 'paused' : Math.round(m.sim.stepRate) + ' Hz');
+  $('simPill').textContent = (m.sim.paused ? (m.sim.stepping ? 'stepping' : 'paused') : Math.round(m.sim.stepRate) + ' Hz');
   $('pauseBtn').textContent = m.sim.paused ? '▶ Resume' : '⏸ Pause';
+  const io = m.sim.io || {};
+  $('ioPill').textContent = io.enabled === false ? 'I/O instant'
+    : `I/O ${(io.totalMs || 0).toFixed(0)} ms · ${io.bulkReads || 0} bulk · ${io.writes || 0} w · ${io.i2c || 0} i2c`;
+  $('ioPill').classList.toggle('muted', io.enabled === false);
   const r = m.robot;
   if (r.epoch !== state.trailEpoch) { state.trail = []; state.trailEpoch = r.epoch; }
   const lastT = state.trail[state.trail.length - 1];
@@ -97,7 +103,7 @@ function onState(m) {
   $('poseFtc').textContent = `FTC x ${r.x.toFixed(1)}  y ${r.y.toFixed(1)}  θ ${r.headingDeg.toFixed(0)}°`;
   $('posePedro').textContent = `Pedro x ${pd.x.toFixed(1)}  y ${pd.y.toFixed(1)}  θ ${pd.h.toFixed(0)}°`;
   if (state.rightTab === 'hardware') renderDevices(m.devices);
-  $('obeliskSelect').value = String(m.sim.obelisk);
+  if ($('obeliskSelect')) $('obeliskSelect').value = String(m.sim.obelisk);
 }
 document.querySelectorAll('#telemetryTabs button').forEach(b => b.onclick = () => { document.querySelectorAll('#telemetryTabs button').forEach(x => x.classList.remove('active')); b.classList.add('active'); state.telemetryTab = b.dataset.tab; });
 document.querySelectorAll('#rightTabs button').forEach(b => b.onclick = () => {
@@ -144,10 +150,12 @@ function drawField() {
   poly([[-72, -72], [72, -72], [72, 72], [-72, 72]], null, '#6c7a95', 3);
   const f = state.field;
   if (f) {
+    for (const z of (f.zones || [])) poly([[z.minX, z.minY], [z.maxX, z.minY], [z.maxX, z.maxY], [z.minX, z.maxY]], z.color + '44', z.color + 'aa', 1);
     for (const o of f.obstacles) poly([[o.minX, o.minY], [o.maxX, o.minY], [o.maxX, o.maxY], [o.minX, o.maxY]], o.color + '55', o.color, 2);
+    for (const sh of (f.shapes || [])) drawShape(sh);
     const ob = state.last ? state.last.sim.obelisk : 21;
     for (const t of f.tags) {
-      if (t.id >= 21 && t.id <= 23 && t.id !== ob) continue;
+      if (t.id >= 21 && t.id <= 23 && t.id !== ob && f.name === 'DECODE') continue;
       const a = t.yawDeg * Math.PI / 180; const hx = Math.cos(a + Math.PI / 2) * t.size / 2, hy = Math.sin(a + Math.PI / 2) * t.size / 2;
       ctx.lineWidth = 4; ctx.strokeStyle = '#f5f5f5'; line(t.x - hx, t.y - hy, t.x + hx, t.y + hy);
       ctx.lineWidth = 1.5; ctx.strokeStyle = '#f5f5f5'; line(t.x, t.y, t.x + Math.cos(a) * 5, t.y + Math.sin(a) * 5);
@@ -180,6 +188,35 @@ function drawField() {
   function poly(pts, fill, stroke, lw) { ctx.beginPath(); pts.forEach((p, i) => { const [sx, sy] = fieldToScreen(p[0], p[1]); if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy); }); ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); } }
   function line(x1, y1, x2, y2) { const a = fieldToScreen(x1, y1), b = fieldToScreen(x2, y2); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
   function label(x, y, text, color) { const [sx, sy] = fieldToScreen(x, y); ctx.fillStyle = color; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(text, sx, sy + 4); ctx.textAlign = 'left'; }
+  function drawShape(sh) {
+    const c = sh.coords, lw = sh.width || 1;
+    switch (sh.type) {
+      case 'rect': poly([[c[0], c[1]], [c[2], c[1]], [c[2], c[3]], [c[0], c[3]]], sh.fill || null, sh.stroke || null, lw);
+        if (sh.label && $('labelsChk').checked) label((c[0] + c[2]) / 2, (c[1] + c[3]) / 2, sh.label, '#f5f5f5'); break;
+      case 'circle': { const [sx, sy] = fieldToScreen(c[0], c[1]); ctx.beginPath(); ctx.arc(sx, sy, c[2] * scale, 0, Math.PI * 2); if (sh.fill) { ctx.fillStyle = sh.fill; ctx.fill(); } if (sh.stroke) { ctx.strokeStyle = sh.stroke; ctx.lineWidth = lw; ctx.stroke(); }
+        if (sh.label && $('labelsChk').checked) label(c[0], c[1] - c[2] - 3, sh.label, '#f5f5f5'); break; }
+      case 'line': ctx.strokeStyle = sh.stroke || '#ffffff'; ctx.lineWidth = lw; line(c[0], c[1], c[2], c[3]); break;
+      case 'polygon': { const pts = []; for (let i = 0; i + 1 < c.length; i += 2) pts.push([c[i], c[i + 1]]); poly(pts, sh.fill || null, sh.stroke || null, lw); break; }
+      case 'label': if ($('labelsChk').checked) label(c[0], c[1], sh.label || '', sh.stroke || '#f5f5f5'); break;
+    }
+  }
+}
+/** Field-specific controls (obelisk face, HIVE tips...) come from the server's field description. */
+function renderFieldOptions(field) {
+  const host = $('fieldOptions'); if (!host) return;
+  const opts = (field && field.options) || [];
+  const key = JSON.stringify(opts.map(o => o.key)) + (field ? field.name : '');
+  if (host.dataset.key !== key) {
+    host.dataset.key = key;
+    host.innerHTML = opts.map(o => `<label>${esc(o.label)} <select data-key="${esc(o.key)}">${o.choices.map((c, i) => `<option value="${esc(c)}">${esc(o.choiceLabels[i] || c)}</option>`).join('')}</select></label>`).join('');
+    for (const sel of host.querySelectorAll('select')) sel.onchange = (e) => {
+      const k = e.target.dataset.key;
+      if (k === 'obelisk') send({ type: 'sim.obelisk', id: parseInt(e.target.value, 10) });
+      send({ type: 'sim.field', key: k, value: e.target.value });
+    };
+  }
+  const st = (field && field.state) || {};
+  for (const sel of host.querySelectorAll('select')) if (st[sel.dataset.key] !== undefined && document.activeElement !== sel) sel.value = String(st[sel.dataset.key]);
 }
 function drawOverlay(d) {
   const conv = d.frame === 'pedro' ? (x, y) => { const p = fromPedro(x, y, 0); return [p.x, p.y]; } : (x, y) => [x, y];
@@ -235,7 +272,7 @@ $('setPoseBtn').onclick = () => {
 $('resetPoseBtn').onclick = () => send({ type: 'sim.reset' });
 $('saveStartBtn').onclick = () => { const r = state.last.robot; send({ type: 'sim.setStartPose', x: r.x, y: r.y, headingDeg: r.headingDeg }); toast('info', 'Start pose saved'); };
 $('rotateSelect').onchange = (e) => { state.viewRot = parseInt(e.target.value, 10); };
-$('obeliskSelect').onchange = (e) => send({ type: 'sim.obelisk', id: parseInt(e.target.value, 10) });
+
 $('frameSelect').onchange = () => { if (!state.last) return; const r = state.last.robot; const p = $('frameSelect').value === 'pedro' ? toPedro(r.x, r.y, r.headingDeg) : { x: r.x, y: r.y, h: r.headingDeg }; $('poseX').value = p.x.toFixed(1); $('poseY').value = p.y.toFixed(1); $('poseH').value = p.h.toFixed(0); };
 
 // ------------------------------------------------------------------ hardware panel

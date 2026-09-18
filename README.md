@@ -58,6 +58,10 @@ the simulator's own tabs.
 
 * **Driver Station** – select an OpMode (TeleOp / Autonomous, grouped like the real DS), INIT, START,
   STOP, an optional 30 s / 2 min match timer, Restart Robot after an emergency stop.
+* **Pause and step** – ⏸ Pause freezes the world *and* the robot code: the OpMode stops at its next
+  hub transaction, so the pose, the sensors and the code all stand still together. ⏭ Step then runs a
+  single slice of simulated time (1, 5, 20 or 100 ms) and freezes again, which is how you walk through
+  a control loop. STOP still works while paused.
 * **Field** – top view of the DECODE field with the AprilTags, goals and the obelisk. The robot, its
   wheel powers, the odometry trail and Pedro / Dashboard drawings are rendered live. Set the pose or
   drag the robot; choose the coordinate frame (FTC field, Pedro, or "code" which follows what the
@@ -105,6 +109,13 @@ St. Mark's Robotics DECODE robot.
   "snapToCodePose": true,                // move the robot when the code calls Pinpoint/OTOS setPosition during INIT
   "codeCoordinateFrame": "auto",         // "ftc", "pedro" or "auto" (pedro when Pedro Pathing is on the classpath)
   "startPose": { "x": 0, "y": 0, "headingDeg": 90 },
+  "hardwareLatency": {                   // what a hub transaction costs the robot code, milliseconds
+    "enabled": true,
+    "bulkReadMs": 2.0,                   // one bulk read of a hub
+    "writeMs": 2.5,                      // one write: motor power, run mode, servo position...
+    "readMs": 2.0,                       // one single (non-bulk) read
+    "i2cMs": 2.5                         // one I2C transaction: Pinpoint, OTOS, colour, distance, IMU
+  },
   "drivetrain": {
     "type": "mecanum",                   // "mecanum", "tank" or "none"
     "wheelDiameterIn": 4.094, "trackWidthIn": 13.5, "wheelBaseIn": 11,
@@ -147,6 +158,9 @@ SDK uses, so `Direction.FORWARD` means the same thing as on the robot.
   encoder directions, SparkFun OTOS, distance / colour / touch sensors editable from the UI,
   Limelight 3A AprilTag results (`tx`, `ty`, `ta`, botpose, fiducials) and VisionPortal AprilTag
   detections (`ftcPose`, `robotPose`) computed from the true robot pose and camera mount.
+* Hub I/O cost: each bulk read takes 2 ms and each write 2.5 ms of the robot code's time (I2C devices
+  2.5 ms), so loop times match a real robot and bulk caching pays off exactly as it does on the field.
+  The `I/O` pill in the toolbar counts the transactions and the time they cost since INIT.
 * Driver Station semantics: INIT / START / STOP, `opModeIsActive()`, stuck-OpMode detection,
   emergency stop on uncaught exceptions with the stack trace in the log, gamepad edge detection and
   rumble/LED calls, telemetry, match timer.

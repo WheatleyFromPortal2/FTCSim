@@ -22,6 +22,8 @@ public final class World {
     private volatile boolean running;
     private volatile boolean paused;
     private volatile double timeScale = 1.0;
+    /** While paused, the sim time at which the world freezes again (set by {@link #stepFor}). */
+    private volatile double stepUntil = Double.NEGATIVE_INFINITY;
     private Thread thread;
     private volatile double simTime;
     private volatile double actualStepRate;
@@ -29,7 +31,25 @@ public final class World {
     public double simTime() { return simTime; }
     public double stepRate() { return actualStepRate; }
     public boolean isPaused() { return paused; }
-    public void setPaused(boolean p) { paused = p; }
+    public void setPaused(boolean p) { paused = p; stepUntil = Double.NEGATIVE_INFINITY; }
+    public double timeScale() { return timeScale; }
+    public void setTimeScale(double s) { timeScale = s <= 0 ? 1.0 : s; }
+
+    /**
+     * True when nothing may advance: the simulation is paused and no step budget is left. Robot code
+     * blocks on this at its next hub transaction, so the world and the OpMode freeze together.
+     */
+    public boolean frozen() { return paused && simTime >= stepUntil; }
+
+    /** Advances the frozen world (and the robot code waiting on it) by {@code seconds} of simulated time. */
+    public void stepFor(double seconds) {
+        if (seconds <= 0) return;
+        stepUntil = simTime + seconds;
+        paused = true;
+    }
+
+    /** How much of the current step budget is left, in seconds (0 when running or fully frozen). */
+    public double stepRemaining() { return paused && stepUntil > simTime ? stepUntil - simTime : 0; }
     public void addStepListener(DoubleConsumer l) { stepListeners.add(l); }
     public void removeStepListener(DoubleConsumer l) { stepListeners.remove(l); }
 
@@ -68,14 +88,20 @@ public final class World {
         if (thread != null) { thread.interrupt(); thread = null; }
     }
 
+    /** The physics thread never pays hub latency and is never frozen by the pause gate. */
+    private static void markPhysicsThread() {
+        try { Class.forName("ftcsim.hardware.HardwareBus").getMethod("markExemptThread").invoke(null); } catch (ReflectiveOperationException ignored) {}
+    }
+
     private void loop() {
         long stepNanos = (long) (DT * 1e9);
         long next = System.nanoTime();
         long rateWindowStart = System.nanoTime();
         int stepsInWindow = 0;
+        markPhysicsThread();
         while (running) {
             long now = System.nanoTime();
-            if (paused) {
+            if (frozen()) {
                 next = now;
                 try { Thread.sleep(5); } catch (InterruptedException e) { return; }
                 continue;
