@@ -16,10 +16,12 @@ Desktop simulator for FTC robot code (see README.md for usage). Key facts for wo
   classpath are not kept (the test classpath only has Pedro when `-Prepo` points at a repo using it).
 - Scratch checkouts used during development live in the session scratchpad (`decode`, `ftcrc`, `pedro`).
 
-- Java toolchain (root build.gradle.kts): the JVM running Gradle is used when it is a JDK >= 17 with a
-  compiler; otherwise a JDK 21 toolchain (installed or foojay-downloaded) compiles and runs everything.
-  `-Pftcsim.jdk=N` forces a version. api.foojay.io is blocked in the sandbox, so test the download path
-  only on a real machine; `-Pftcsim.jdk=21` exercises the installed-JDK path here.
+- Java: `gradle/gradle-daemon-jvm.properties` (daemon JVM criteria, JDK 21, hand-written Adoptium download
+  URLs because `updateDaemonJvm` needs api.foojay.io, which the sandbox blocks) makes the Gradle daemon run
+  on a JDK 21 even when `./gradlew` is launched by a Java 8 JRE. The foojay plugin in settings needs Java 17+
+  itself, so it only loads once the daemon is on 21. Root build.gradle.kts additionally falls back to a
+  JDK 21 compile/run toolchain if the daemon JVM has no compiler; `-Pftcsim.jdk=N` forces a version.
+  Test the launcher path with a jlink'ed compiler-less runtime: `JAVA_HOME=<jre> ./gradlew :sim:compileJava`.
 
 ## Architecture rules
 - Real SDK classes are used wherever possible; only hardware/Android-bound classes are shadowed
