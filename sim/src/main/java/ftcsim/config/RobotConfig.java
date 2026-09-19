@@ -36,10 +36,24 @@ public class RobotConfig {
     public boolean snapToCodePose = true;
     /** Coordinate frame the team code uses for field poses: "pedro" (0..144 in, x away from goal wall), "ftc" (centre origin) or "auto". */
     public String codeCoordinateFrame = "auto";
+    /** Cost of talking to the hubs; set enabled=false for an instant, unrealistic bus. */
+    public Latency hardwareLatency = new Latency();
     public StartPose startPose = new StartPose();
     public Drivetrain drivetrain = new Drivetrain();
     public List<Hub> hubs = new ArrayList<>();
     public List<Device> devices = new ArrayList<>();
+
+    public static class Latency {
+        public boolean enabled = true;
+        /** One bulk read of a hub (all motor/encoder/digital/analog values at once). */
+        public double bulkReadMs = 2.0;
+        /** One write: a motor power, a run mode, a servo position... */
+        public double writeMs = 2.5;
+        /** One single (non-bulk) read of a hub value. */
+        public double readMs = 2.0;
+        /** One I2C transaction: Pinpoint, OTOS, colour/distance sensors, the hub IMU. */
+        public double i2cMs = 2.5;
+    }
 
     public static class StartPose {
         /** FTC field coordinates, inches; heading in degrees CCW from +X. */

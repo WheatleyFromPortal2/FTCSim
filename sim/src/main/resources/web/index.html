@@ -15,7 +15,10 @@
   <button id="reloadBtn" title="Recompile the team code (R)">⟳ Reload code</button>
   <div class="pill" id="batteryPill" title="Battery voltage / total current">12.8 V</div>
   <div class="pill" id="simPill" title="Physics step rate">1000 Hz</div>
-  <button id="pauseBtn" title="Pause / resume the physics">⏸ Pause</button>
+  <button id="pauseBtn" title="Freeze the world and the robot code (robot code stops at its next hardware call)">⏸ Pause</button>
+  <button id="stepBtn" title="While paused, run one slice of simulated time">⏭ Step</button>
+  <select id="stepSize" title="How much simulated time one step runs"><option value="1">1 ms</option><option value="5">5 ms</option><option value="20" selected>20 ms</option><option value="100">100 ms</option></select>
+  <div class="pill" id="ioPill" title="Hub transactions made by the robot code since INIT, and the time they cost it">I/O</div>
   <div class="pill" id="connPill">offline</div>
 </header>
 
@@ -64,8 +67,8 @@
     <div class="field-toolbar bottom">
       <label class="chk"><input type="checkbox" id="trailChk" checked> Trail</label>
       <label class="chk"><input type="checkbox" id="labelsChk" checked> Labels</label>
-      <label>View <select id="rotateSelect"><option value="0">goal wall left</option><option value="90">goal wall bottom</option><option value="180">goal wall right</option><option value="270">goal wall top</option></select></label>
-      <label>Obelisk <select id="obeliskSelect"><option value="21">21 (GPP)</option><option value="22">22 (PGP)</option><option value="23">23 (PPG)</option></select></label>
+      <label>View <select id="rotateSelect"><option value="0">audience right (+X →)</option><option value="90">audience top</option><option value="180">audience left</option><option value="270">audience bottom</option></select></label>
+      <span id="fieldOptions"></span>
       <span class="hint">drag robot to move · shift+drag or wheel to rotate</span>
     </div>
   </section>

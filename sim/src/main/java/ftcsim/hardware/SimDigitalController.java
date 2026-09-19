@@ -35,10 +35,10 @@ public class SimDigitalController implements DigitalChannelController, LynxModul
     @Override public void fillBulkData(LynxModule.BulkData data) { for (int i = 0; i < PORTS; i++) data.digitalState[i] = live(i); }
     @Override public SerialNumber getSerialNumber() { return serial; }
     @Override public DigitalChannel.Mode getDigitalChannelMode(int port) { return modes[port]; }
-    @Override public void setDigitalChannelMode(int port, DigitalChannel.Mode mode) { modes[port] = mode; }
+    @Override public void setDigitalChannelMode(int port, DigitalChannel.Mode mode) { modes[port] = mode; HardwareBus.write(); }
     @Override public void setDigitalChannelMode(int port, DigitalChannelController.Mode mode) { modes[port] = mode.migrate(); }
     @Override public boolean getDigitalChannelState(int port) { return hub.bulkRead("digital/" + port, () -> live(port), d -> d.getDigitalChannelState(port)); }
-    @Override public void setDigitalChannelState(int port, boolean state) { outputState[port] = state; }
+    @Override public void setDigitalChannelState(int port, boolean state) { outputState[port] = state; HardwareBus.write(); }
     @Override public Manufacturer getManufacturer() { return Manufacturer.Lynx; }
     @Override public String getDeviceName() { return "FTCSim Digital Controller"; }
     @Override public String getConnectionInfo() { return hub.getName(); }

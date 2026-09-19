@@ -37,12 +37,13 @@ public class SimServoController implements ServoControllerEx {
         st.commanded = Math.max(0, Math.min(1, position));
         st.everCommanded = true;
         st.pwmEnabled = true;
+        HardwareBus.write();
     }
     @Override public double getServoPosition(int port) { return s(port).commanded; }
-    @Override public void setServoPwmRange(int port, PwmControl.PwmRange range) { s(port).pwmRange = range; }
+    @Override public void setServoPwmRange(int port, PwmControl.PwmRange range) { s(port).pwmRange = range; HardwareBus.write(); }
     @Override public PwmControl.PwmRange getServoPwmRange(int port) { return s(port).pwmRange; }
-    @Override public void setServoPwmEnable(int port) { s(port).pwmEnabled = true; }
-    @Override public void setServoPwmDisable(int port) { s(port).pwmEnabled = false; }
+    @Override public void setServoPwmEnable(int port) { s(port).pwmEnabled = true; HardwareBus.write(); }
+    @Override public void setServoPwmDisable(int port) { s(port).pwmEnabled = false; HardwareBus.write(); }
     @Override public boolean isServoPwmEnabled(int port) { return s(port).pwmEnabled; }
     @Override public void setServoType(int port, ServoConfigurationType type) {
         if (type == null) return;
@@ -59,6 +60,7 @@ public class SimServoController implements ServoControllerEx {
         st.commanded = span > 0 ? Math.max(0, Math.min(1, (pulseWidthUs - r.usPulseLower) / span)) : 0.5;
         st.everCommanded = true;
         st.pwmEnabled = true;
+        HardwareBus.write();
     }
     public double getPulseWidth(int port) { return s(port).pulseWidthUs(); }
     /** SDK 12: the hub forgets the last commanded position (the next read returns 0 until a new command). */

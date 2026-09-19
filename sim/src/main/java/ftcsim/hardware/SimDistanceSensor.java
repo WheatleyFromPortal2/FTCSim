@@ -25,7 +25,7 @@ public class SimDistanceSensor extends Rev2mDistanceSensor implements SimDevice 
     public void setMount(double xIn, double yIn, double yawDeg) { model.setMount(xIn, yIn, yawDeg); }
 
     @Override protected synchronized boolean doInitialize() { return true; }
-    @Override public double getDistance(DistanceUnit unit) { return unit.fromMm(model.measureMm()); }
+    @Override public double getDistance(DistanceUnit unit) { double mm = model.measureMm(); HardwareBus.i2c(); return unit.fromMm(mm); }
     @Override public boolean didTimeoutOccur() { return false; }
     @Override public byte getModelID() { return (byte) 0xEE; }
     @Override public String getDeviceName() { return "REV 2M Distance Sensor"; }

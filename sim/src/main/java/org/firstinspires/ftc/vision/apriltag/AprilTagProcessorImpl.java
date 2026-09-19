@@ -50,6 +50,21 @@ public class AprilTagProcessorImpl extends AprilTagProcessor implements SimVisio
 
     private static final Constructor<?> DETECTION_CTOR;
     private static final boolean DETECTION_HAS_UNIT;
+    // SDK 12 cluster API (absent on SDK 11): resolved reflectively so one source compiles against both.
+    private static final java.lang.reflect.Method GET_ALL_CLUSTERS;
+    private static final Constructor<?> CLUSTER_DETECTION_CTOR;
+    private static final java.lang.reflect.Field CLUSTER_NAME, CLUSTER_POSITION, CLUSTER_ORIENTATION, CLUSTER_UNIT;
+    static {
+        java.lang.reflect.Method gac = null; Constructor<?> cdc = null; java.lang.reflect.Field cn = null, cp = null, co = null, cu = null;
+        try {
+            gac = AprilTagLibrary.class.getMethod("getAllClusters");
+            Class<?> meta = Class.forName("org.firstinspires.ftc.vision.apriltag.AprilTagClusterMetadata");
+            Class<?> det = Class.forName("org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection");
+            cdc = det.getConstructor(int.class, meta, DistanceUnit.class, AprilTagPoseFtc.class, AprilTagPoseRaw.class, Pose3D.class, long.class);
+            cn = meta.getField("name"); cp = meta.getField("fieldPosition"); co = meta.getField("fieldOrientation"); cu = meta.getField("distanceUnit");
+        } catch (Throwable ignored) { gac = null; cdc = null; }
+        GET_ALL_CLUSTERS = gac; CLUSTER_DETECTION_CTOR = cdc; CLUSTER_NAME = cn; CLUSTER_POSITION = cp; CLUSTER_ORIENTATION = co; CLUSTER_UNIT = cu;
+    }
     static {
         Constructor<?> c = null; boolean hasUnit = false;
         try {
@@ -87,6 +102,41 @@ public class AprilTagProcessorImpl extends AprilTagProcessor implements SimVisio
 
     /** A tag's placement on the field: inches, yaw = direction the face points (CCW from +X). */
     private static final class Placement { double x, y, z, yawDeg, sizeIn; }
+
+    /** Result of projecting a point on the field into the camera. */
+    private static final class Sight {
+        double az, el, range3, xF, yF, zF, txp, typ, facing;
+    }
+
+    /** Camera geometry for one simulated frame. */
+    private final class Camera {
+        double camYaw, camPitch, camZ, focal, focalV, hfov, vfov; Vec2 camWorld; int w, h; double maxRange;
+        /** Whether a face at (x, y, z) pointing along yawDeg is inside the camera's view; null when not. */
+        Sight see(double x, double y, double z, double yawDeg, double minFacing) {
+            Vec2 rel = new Vec2(x - camWorld.x, y - camWorld.y);
+            double dist = rel.norm();
+            if (dist < 2) return null;
+            Vec2 normal = Vec2.polar(1, Math.toRadians(yawDeg));
+            double facing = normal.dot(rel.times(-1 / dist));
+            if (facing < minFacing) return null;
+            Vec2 inCam = rel.rotated(-camYaw);
+            if (inCam.x <= 0) return null;
+            double az = Math.atan2(inCam.y, inCam.x);
+            if (Math.abs(az) > hfov / 2) return null;
+            double dz = z - camZ;
+            double el = Math.atan2(dz, inCam.x) - camPitch;
+            if (Math.abs(el) > vfov / 2) return null;
+            Sight s = new Sight();
+            s.az = az; s.el = el; s.facing = facing;
+            s.range3 = Math.sqrt(inCam.x * inCam.x + inCam.y * inCam.y + dz * dz);
+            if (s.range3 > maxRange) return null;
+            s.xF = -inCam.y;
+            s.yF = inCam.x * Math.cos(camPitch) + dz * Math.sin(camPitch);
+            s.zF = -inCam.x * Math.sin(camPitch) + dz * Math.cos(camPitch);
+            s.txp = w / 2.0 - Math.tan(az) * focal; s.typ = h / 2.0 - Math.tan(el) * focalV;
+            return s;
+        }
+    }
 
     private Placement placement(AprilTagMetadata m) {
         VectorF p = m.fieldPosition;
@@ -131,69 +181,118 @@ public class AprilTagProcessorImpl extends AprilTagProcessor implements SimVisio
                 }
             }
         }
-        Vec2 camWorld = new Vec2(rxIn, ryIn).plus(new Vec2(camX, camY).rotated(p.heading));
-        double camYaw = Pose2.normalize(p.heading + camYawRel);
-        double hfov = Math.toRadians(mount.hfovDeg), vfov = Math.toRadians(mount.vfovDeg);
-        double focal = fx > 0 ? fx : (widthPx / 2.0) / Math.tan(hfov / 2);
-        double focalV = fy > 0 ? fy : (heightPx / 2.0) / Math.tan(vfov / 2);
+        Camera cam = new Camera();
+        cam.camWorld = new Vec2(rxIn, ryIn).plus(new Vec2(camX, camY).rotated(p.heading));
+        cam.camYaw = Pose2.normalize(p.heading + camYawRel);
+        cam.camPitch = camPitch; cam.camZ = camZ; cam.w = widthPx; cam.h = heightPx; cam.maxRange = mount.maxRangeIn;
+        cam.hfov = Math.toRadians(mount.hfovDeg); cam.vfov = Math.toRadians(mount.vfovDeg);
+        cam.focal = fx > 0 ? fx : (widthPx / 2.0) / Math.tan(cam.hfov / 2);
+        cam.focalV = fy > 0 ? fy : (heightPx / 2.0) / Math.tan(cam.vfov / 2);
+        DistanceUnit du = outputUnitsLength; AngleUnit au = outputUnitsAngle;
         ArrayList<AprilTagDetection> found = new ArrayList<>();
-        List<Integer> ids = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
+
         for (AprilTagMetadata meta : tagLibrary.getAllTags()) {
             Placement t = placement(meta);
             if (t == null) continue;
-            Vec2 rel = new Vec2(t.x - camWorld.x, t.y - camWorld.y);
-            double dist = rel.norm();
-            if (dist < 2) continue;
-            Vec2 normal = Vec2.polar(1, Math.toRadians(t.yawDeg));
-            double facing = normal.dot(rel.times(-1 / dist));
-            if (facing < 0.25) continue;
-            Vec2 inCam = rel.rotated(-camYaw); // x forward, y left
-            if (inCam.x <= 0) continue;
-            double az = Math.atan2(inCam.y, inCam.x);
-            if (Math.abs(az) > hfov / 2) continue;
-            double dz = t.z - camZ;
-            double el = Math.atan2(dz, inCam.x) - camPitch;
-            if (Math.abs(el) > vfov / 2) continue;
-            double range3 = Math.sqrt(inCam.x * inCam.x + inCam.y * inCam.y + dz * dz);
-            if (range3 > mount.maxRangeIn) continue;
-            double apparentPx = t.sizeIn * focal / range3 * facing;
+            Sight s = cam.see(t.x, t.y, t.z, t.yawDeg, 0.25);
+            if (s == null) continue;
+            double apparentPx = t.sizeIn * cam.focal / s.range3 * s.facing;
             if (apparentPx < 6) continue;
-            // camera frame used by ftcPose: x right, y forward (along the optical axis), z up
-            double xF = -inCam.y;
-            double yF = inCam.x * Math.cos(camPitch) + dz * Math.sin(camPitch);
-            double zF = -inCam.x * Math.sin(camPitch) + dz * Math.cos(camPitch);
-            double noise = mount.noiseIn * Math.max(1, range3 / 48);
-            xF += random.nextGaussian() * noise; yF += random.nextGaussian() * noise; zF += random.nextGaussian() * noise * 0.5;
-            double range = Math.sqrt(xF * xF + yF * yF + zF * zF);
-            double bearing = Math.toDegrees(Math.atan2(-xF, yF));
-            double elevation = Math.toDegrees(Math.atan2(zF, Math.hypot(xF, yF)));
-            double yaw = Pose2.normalizeDeg(t.yawDeg - Math.toDegrees(camYaw) + 180) + random.nextGaussian() * mount.noiseDeg;
-            double pitch = random.nextGaussian() * mount.noiseDeg, roll = random.nextGaussian() * mount.noiseDeg;
-            DistanceUnit du = outputUnitsLength; AngleUnit au = outputUnitsAngle;
-            AprilTagPoseFtc ftcPose = new AprilTagPoseFtc(du.fromInches(xF), du.fromInches(yF), du.fromInches(zF), au.fromDegrees(yaw), au.fromDegrees(pitch), au.fromDegrees(roll), du.fromInches(range), au.fromDegrees(bearing), au.fromDegrees(elevation));
-            double yr = Math.toRadians(yaw);
-            MatrixF R = new GeneralMatrixF(3, 3, new float[] { (float) Math.cos(yr), 0, (float) Math.sin(yr), 0, 1, 0, (float) -Math.sin(yr), 0, (float) Math.cos(yr) });
-            AprilTagPoseRaw rawPose = new AprilTagPoseRaw(du.fromInches(xF), du.fromInches(-zF), du.fromInches(yF), R);
-            double nx = rxIn + random.nextGaussian() * noise * 0.5, ny = ryIn + random.nextGaussian() * noise * 0.5;
-            double nh = Math.toDegrees(p.heading) + random.nextGaussian() * mount.noiseDeg;
-            Pose3D robotPose = new Pose3D(new Position(du, du.fromInches(nx), du.fromInches(ny), du.fromInches(0), frameNanos), new YawPitchRollAngles(au, au.fromDegrees(nh), 0, 0, frameNanos));
-            double txp = widthPx / 2.0 - Math.tan(az) * focal, typ = heightPx / 2.0 - Math.tan(el) * focalV;
-            double half = t.sizeIn / 2 * focal / range3;
-            Point center = new Point(txp, typ);
-            Point[] corners = { new Point(txp - half, typ + half), new Point(txp + half, typ + half), new Point(txp + half, typ - half), new Point(txp - half, typ - half) };
-            float margin = (float) Math.max(5, 120 - range3 / 2);
+            double noise = mount.noiseIn * Math.max(1, s.range3 / 48);
+            double yaw = Pose2.normalizeDeg(t.yawDeg - Math.toDegrees(cam.camYaw) + 180) + random.nextGaussian() * mount.noiseDeg;
+            Poses poses = poses(s, noise, yaw, 0, p, rxIn, ryIn, frameNanos, mount);
+            double half = t.sizeIn / 2 * cam.focal / s.range3;
+            Point center = new Point(s.txp, s.typ);
+            Point[] corners = { new Point(s.txp - half, s.typ + half), new Point(s.txp + half, s.typ + half), new Point(s.txp + half, s.typ - half), new Point(s.txp - half, s.typ - half) };
+            float margin = (float) Math.max(5, 120 - s.range3 / 2);
             try {
                 Object det = DETECTION_HAS_UNIT
-                    ? DETECTION_CTOR.newInstance(meta.id, 0, margin, center, corners, meta, ftcPose, rawPose, robotPose, frameNanos, du)
-                    : DETECTION_CTOR.newInstance(meta.id, 0, margin, center, corners, meta, ftcPose, rawPose, robotPose, frameNanos);
+                    ? DETECTION_CTOR.newInstance(meta.id, 0, margin, center, corners, meta, poses.ftc, poses.raw, poses.robot, frameNanos, du)
+                    : DETECTION_CTOR.newInstance(meta.id, 0, margin, center, corners, meta, poses.ftc, poses.raw, poses.robot, frameNanos);
                 found.add((AprilTagDetection) det);
-                ids.add(meta.id);
+                ids.add(String.valueOf(meta.id));
             } catch (ReflectiveOperationException e) {
                 RobotLog.ee(TAG, e, "[sim] could not create AprilTagDetection");
+            }
+        }
+
+        // SDK 12 clusters: the library's own placement when it has one, else the simulated field's element that carries it
+        if (GET_ALL_CLUSTERS != null && CLUSTER_DETECTION_CTOR != null) {
+            try {
+                Object[] clusters = (Object[]) GET_ALL_CLUSTERS.invoke(tagLibrary);
+                for (Object meta : clusters) {
+                    String name = String.valueOf(CLUSTER_NAME.get(meta));
+                    Field.Cluster fc = clusterPlacement(name, meta);
+                    if (fc == null) continue;
+                    int visible = 0;
+                    for (double[] off : fc.memberOffsets) {
+                        double[] mp = fc.memberPosition(off);
+                        Sight ms = cam.see(mp[0], mp[1], mp[2], fc.yawDeg, 0.15);
+                        if (ms != null && fc.tagSizeIn * cam.focal / ms.range3 * ms.facing >= 6) visible++;
+                    }
+                    if (visible == 0) continue;
+                    Sight s = cam.see(fc.x, fc.y, fc.z, fc.yawDeg, -1); // origin of the cluster (the CELL opening)
+                    if (s == null) continue;
+                    double noise = mount.noiseIn * Math.max(1, s.range3 / 48) / Math.sqrt(visible);
+                    double yaw = Pose2.normalizeDeg(fc.yawDeg - Math.toDegrees(cam.camYaw) + 180) + random.nextGaussian() * mount.noiseDeg;
+                    double pitch = fc.pitchDeg - Math.toDegrees(cam.camPitch);
+                    Poses poses = poses(s, noise, yaw, pitch, p, rxIn, ryIn, frameNanos, mount);
+                    int percent = (int) Math.round(100.0 * visible / fc.memberOffsets.length);
+                    Object det = CLUSTER_DETECTION_CTOR.newInstance(percent, meta, du, poses.ftc, poses.raw, poses.robot, frameNanos);
+                    found.add((AprilTagDetection) det);
+                    ids.add(name + " " + percent + "%");
+                }
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                RobotLog.ee(TAG, e, "[sim] cluster detection failed");
             }
         }
         detections = found;
         fresh.set(true);
         summary = ids.isEmpty() ? "no tags" : "tags " + ids;
+    }
+
+    private static final class Poses { AprilTagPoseFtc ftc; AprilTagPoseRaw raw; Pose3D robot; }
+
+    private Poses poses(Sight s, double noise, double yaw, double pitch, Pose2 p, double rxIn, double ryIn, long frameNanos, CameraMount mount) {
+        DistanceUnit du = outputUnitsLength; AngleUnit au = outputUnitsAngle;
+        double xF = s.xF + random.nextGaussian() * noise, yF = s.yF + random.nextGaussian() * noise, zF = s.zF + random.nextGaussian() * noise * 0.5;
+        double range = Math.sqrt(xF * xF + yF * yF + zF * zF);
+        double bearing = Math.toDegrees(Math.atan2(-xF, yF));
+        double elevation = Math.toDegrees(Math.atan2(zF, Math.hypot(xF, yF)));
+        double roll = random.nextGaussian() * mount.noiseDeg;
+        pitch += random.nextGaussian() * mount.noiseDeg;
+        Poses out = new Poses();
+        out.ftc = new AprilTagPoseFtc(du.fromInches(xF), du.fromInches(yF), du.fromInches(zF), au.fromDegrees(yaw), au.fromDegrees(pitch), au.fromDegrees(roll), du.fromInches(range), au.fromDegrees(bearing), au.fromDegrees(elevation));
+        double yr = Math.toRadians(yaw);
+        MatrixF R = new GeneralMatrixF(3, 3, new float[] { (float) Math.cos(yr), 0, (float) Math.sin(yr), 0, 1, 0, (float) -Math.sin(yr), 0, (float) Math.cos(yr) });
+        out.raw = new AprilTagPoseRaw(du.fromInches(xF), du.fromInches(-zF), du.fromInches(yF), R);
+        double nx = rxIn + random.nextGaussian() * noise * 0.5, ny = ryIn + random.nextGaussian() * noise * 0.5;
+        double nh = Math.toDegrees(p.heading) + random.nextGaussian() * mount.noiseDeg;
+        out.robot = new Pose3D(new Position(du, du.fromInches(nx), du.fromInches(ny), du.fromInches(0), frameNanos), new YawPitchRollAngles(au, au.fromDegrees(nh), 0, 0, frameNanos));
+        return out;
+    }
+
+    /** Where a cluster is: the library's placement when it gives one, else the simulated field's cluster of the same name. */
+    private Field.Cluster clusterPlacement(String name, Object meta) throws ReflectiveOperationException {
+        VectorF pos = (VectorF) CLUSTER_POSITION.get(meta);
+        Quaternion q = (Quaternion) CLUSTER_ORIENTATION.get(meta);
+        boolean placed = pos != null && (Math.abs(pos.get(0)) > 1e-6 || Math.abs(pos.get(1)) > 1e-6 || Math.abs(pos.get(2)) > 1e-6);
+        if (placed && q != null) {
+            DistanceUnit unit = (DistanceUnit) CLUSTER_UNIT.get(meta);
+            if (unit == null) unit = DistanceUnit.INCH;
+            VectorF z = q.applyToVector(new VectorF(0, 0, 1));
+            double yaw = Math.toDegrees(Math.atan2(-z.get(1), -z.get(0)));
+            double pitch = Math.toDegrees(Math.asin(Math.max(-1, Math.min(1, -z.get(2)))));
+            // member offsets: reuse the simulated field's layout for this cluster when known, else a single origin tag
+            Field f = SimVision.field();
+            double[][] offsets = { { 0, 0, 0 } }; double size = 3.25;
+            if (f != null) for (Field.Cluster c : f.clusters) if (c.name.equalsIgnoreCase(name)) { offsets = c.memberOffsets; size = c.tagSizeIn; }
+            return new Field.Cluster(name, DistanceUnit.INCH.fromUnit(unit, pos.get(0)), DistanceUnit.INCH.fromUnit(unit, pos.get(1)), DistanceUnit.INCH.fromUnit(unit, pos.get(2)), yaw, pitch, new int[0], offsets, size);
+        }
+        Field f = SimVision.field();
+        if (f == null) return null;
+        for (Field.Cluster c : f.clusters) if (c.name.equalsIgnoreCase(name)) return c;
+        return null;
     }
 }

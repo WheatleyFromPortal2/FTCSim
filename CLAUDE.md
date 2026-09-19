@@ -16,10 +16,12 @@ Desktop simulator for FTC robot code (see README.md for usage). Key facts for wo
   classpath are not kept (the test classpath only has Pedro when `-Prepo` points at a repo using it).
 - Scratch checkouts used during development live in the session scratchpad (`decode`, `ftcrc`, `pedro`).
 
-- Java toolchain (root build.gradle.kts): the JVM running Gradle is used when it is a JDK >= 17 with a
-  compiler; otherwise a JDK 21 toolchain (installed or foojay-downloaded) compiles and runs everything.
-  `-Pftcsim.jdk=N` forces a version. api.foojay.io is blocked in the sandbox, so test the download path
-  only on a real machine; `-Pftcsim.jdk=21` exercises the installed-JDK path here.
+- Java: `gradle/gradle-daemon-jvm.properties` (daemon JVM criteria, JDK 21, hand-written Adoptium download
+  URLs because `updateDaemonJvm` needs api.foojay.io, which the sandbox blocks) makes the Gradle daemon run
+  on a JDK 21 even when `./gradlew` is launched by a Java 8 JRE. The foojay plugin in settings needs Java 17+
+  itself, so it only loads once the daemon is on 21. Root build.gradle.kts additionally falls back to a
+  JDK 21 compile/run toolchain if the daemon JVM has no compiler; `-Pftcsim.jdk=N` forces a version.
+  Test the launcher path with a jlink'ed compiler-less runtime: `JAVA_HOME=<jre> ./gradlew :sim:compileJava`.
 
 ## Architecture rules
 - Real SDK classes are used wherever possible; only hardware/Android-bound classes are shadowed
@@ -38,6 +40,17 @@ Desktop simulator for FTC robot code (see README.md for usage). Key facts for wo
 - VisionPortal: `VisionPortalImpl` runs a 30 Hz loop driving `SimVisionProcessor`s;
   `AprilTagProcessorImpl` computes detections from `SimVision` (true pose + field + camera mount from
   the `WebcamName` config entry or `setCameraPose`). No camera frames exist.
+- `ftcsim.hardware.HardwareBus` charges hub latency (bulk read 2 ms, write 2.5 ms, read 2 ms, I2C 2.5 ms,
+  all from `RobotConfig.hardwareLatency`) to the calling thread and holds the pause gate. Rules:
+  never charge while holding a device monitor (the physics thread samples the same devices and would
+  stall), and never let the UI read through the SDK's synchronized wrappers such as
+  `DcMotorImpl.getCurrentPosition()` (robot code frozen by a pause holds that monitor). Device views read
+  `MotorState`/`ServoState` directly. Simulator-owned threads call `markExemptThread()`/`exempt(...)`:
+  broadcast, physics, vision, the OpMode stop thread.
+- Pause freezes world and robot code together: `World.frozen()` = paused with no step budget;
+  `World.stepFor(s)` opens a budget (the UI's Step button). Robot code blocks in `HardwareBus.gate()` at
+  its next hub call, in the runner's event loop, and in `publishTelemetry`. Code that neither touches
+  hardware nor calls telemetry keeps running until it does.
 - Unknown I2C driver classes are instantiated on `VirtualI2cDevice` (reads return zeros); interfaces map
   to drivers through `SimHardware.I2C_IMPLS` (OctoQuad). Legacy `BNO055IMU` has a real model (`SimBNO055IMU`).
 - Android `R` classes: `ftc-sdk` generates `<aar package>.R` + `ftcsim.generated.ResourceNames` from each

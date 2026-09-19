@@ -161,7 +161,7 @@ public final class SimOpModeRunner {
         setState(State.STOPPING);
         ignoreStopRequests = true;
         RobotLog.ii(TAG, "Stopping %s", entry == null ? "OpMode" : entry.name);
-        final Thread stopper = new Thread(om::internalStop, "ftcsim-internalStop");
+        final Thread stopper = new Thread(() -> { ftcsim.hardware.HardwareBus.markExemptThread(); om.internalStop(); }, "ftcsim-internalStop");
         stopper.setDaemon(true);
         stopper.start();
         long timeout = om.msStuckDetectStop + 1500L;
@@ -218,6 +218,27 @@ public final class SimOpModeRunner {
         if (opMode != null && (state == State.INIT || state == State.RUNNING) && threadError == null) threadError = t;
     }
 
+    private static volatile SimOpModeRunner instance;
+    { instance = this; }
+
+    /** The OpMode currently in INIT or RUNNING, else null. */
+    public static OpMode currentOpMode() {
+        SimOpModeRunner r = instance;
+        if (r == null) return null;
+        State s = r.state;
+        return (s == State.INIT || s == State.RUNNING) ? r.opMode : null;
+    }
+
+    /**
+     * Prepares a nested OpMode (Pedro's tuning OpModes) to run on the current thread inside {@code host}:
+     * it shares the host's services and is considered started so opModeIsActive() is true.
+     */
+    public static void adoptInline(OpMode nested, OpMode host) {
+        nested.internalOpModeServices = host.internalOpModeServices;
+        nested.isStarted = host.isStarted;
+        nested.stopRequested = false;
+    }
+
     public void restartRobot() {
         synchronized (lock) {
             if (opMode != null) stopInternal(false);
@@ -253,6 +274,8 @@ public final class SimOpModeRunner {
             State s = state;
             if (s == State.INIT || s == State.RUNNING) {
                 try {
+                    // a paused simulation freezes robot code: an iterative OpMode stops between loop() calls
+                    ftcsim.hardware.HardwareBus.gate();
                     om.newGamepadDataAvailable(gamepad1, gamepad2);
                     om.internalOnEventLoopIteration();
                 } catch (RuntimeException ex) {
@@ -273,6 +296,8 @@ public final class SimOpModeRunner {
 
     // ------------------------------------------------------------------ telemetry
     private void publishTelemetry(TelemetryMessage msg) {
+        // telemetry.update() is the other place nearly every OpMode passes through each loop
+        ftcsim.hardware.HardwareBus.gate();
         Map<String, String> data = msg.getDataStrings();
         List<String> keys = new ArrayList<>(data.keySet());
         Collections.sort(keys);

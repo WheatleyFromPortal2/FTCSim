@@ -97,36 +97,47 @@ public class SimPinpoint extends GoBildaPinpointDriver implements SimDevice {
     }
 
     // ---- GoBildaPinpointDriver API ----
-    @Override public void update() { snapshot(); }
-    @Override public void update(ReadData data) { snapshot(); }
-    @Override public void setOffsets(double xOffset, double yOffset, DistanceUnit unit) { xOffsetMm = unit.toMm(xOffset); yOffsetMm = unit.toMm(yOffset); }
-    @Override public synchronized void recalibrateIMU() { headingOffset = chassis.pose().heading * yawScalar - heading; calibratingUntil = System.nanoTime() + 250_000_000L; }
-    @Override public synchronized void resetPosAndIMU() {
-        posX = posY = heading = velX = velY = headingVel = 0;
-        snap();
-        headingOffset = chassis.pose().heading * yawScalar;
-        haveLast = false;
-        calibratingUntil = System.nanoTime() + 250_000_000L;
-        snapshot();
+    @Override public void update() { snapshot(); HardwareBus.i2c(); }
+    @Override public void update(ReadData data) { snapshot(); HardwareBus.i2c(); }
+    @Override public void setOffsets(double xOffset, double yOffset, DistanceUnit unit) { xOffsetMm = unit.toMm(xOffset); yOffsetMm = unit.toMm(yOffset); HardwareBus.i2c(); }
+    @Override public void recalibrateIMU() {
+        HardwareBus.i2c();
+        synchronized (this) { headingOffset = chassis.pose().heading * yawScalar - heading; calibratingUntil = System.nanoTime() + 250_000_000L; }
+    }
+    @Override public void resetPosAndIMU() {
+        HardwareBus.i2c();
+        synchronized (this) {
+            posX = posY = heading = velX = velY = headingVel = 0;
+            snap();
+            headingOffset = chassis.pose().heading * yawScalar;
+            haveLast = false;
+            calibratingUntil = System.nanoTime() + 250_000_000L;
+            snapshot();
+        }
     }
     @Override public void setEncoderDirections(EncoderDirection xEncoder, EncoderDirection yEncoder) {
+        HardwareBus.i2c();
         dirX = xEncoder == EncoderDirection.REVERSED ? -1 : 1;
         dirY = yEncoder == EncoderDirection.REVERSED ? -1 : 1;
         if (assumeDirectionsCorrect) { xPod.physicalSign = dirX; yPod.physicalSign = dirY; }
     }
     @Override public void setEncoderResolution(GoBildaOdometryPods pods) {
+        HardwareBus.i2c();
         mmPerTick = pods == GoBildaOdometryPods.goBILDA_4_BAR_POD ? 1.0 / 19.89436789 : 1.0 / 13.26291192;
     }
-    @Override public void setEncoderResolution(double ticksPerUnit, DistanceUnit unit) { mmPerTick = unit.toMm(1.0) / ticksPerUnit; }
+    @Override public void setEncoderResolution(double ticksPerUnit, DistanceUnit unit) { mmPerTick = unit.toMm(1.0) / ticksPerUnit; HardwareBus.i2c(); }
     @Override public void setYawScalar(double scalar) { yawScalar = (float) scalar; }
-    @Override public synchronized void setPosition(Pose2D pos) {
-        posX = pos.getX(DistanceUnit.MM); posY = pos.getY(DistanceUnit.MM);
-        double h = pos.getHeading(AngleUnit.RADIANS);
-        heading = h;
-        snap(); // may teleport the robot so that its true pose matches
-        headingOffset = chassis.pose().heading * yawScalar - h;
-        haveLast = false;
-        snapshot();
+    @Override public void setPosition(Pose2D pos) {
+        HardwareBus.i2c(); // charged outside the lock: the physics thread samples this device too
+        synchronized (this) {
+            posX = pos.getX(DistanceUnit.MM); posY = pos.getY(DistanceUnit.MM);
+            double h = pos.getHeading(AngleUnit.RADIANS);
+            heading = h;
+            snap(); // may teleport the robot so that its true pose matches
+            headingOffset = chassis.pose().heading * yawScalar - h;
+            haveLast = false;
+            snapshot();
+        }
     }
     @Override public synchronized void setPosX(double x, DistanceUnit unit) { posX = unit.toMm(x); snapshot(); snap(); }
     @Override public synchronized void setPosY(double y, DistanceUnit unit) { posY = unit.toMm(y); snapshot(); snap(); }
@@ -142,6 +153,13 @@ public class SimPinpoint extends GoBildaPinpointDriver implements SimDevice {
     @Override public double getPosX(DistanceUnit unit) { return unit.fromMm(rPosX); }
     @Override public double getPosY(DistanceUnit unit) { return unit.fromMm(rPosY); }
     @Override public double getHeading(AngleUnit unit) { return unit.fromRadians(rHeading); }
+    // SDK 11.2+: the Pinpoint also reports pitch, roll and the full orientation quaternion.
+    public double getPitch(AngleUnit unit) { return 0; }
+    public double getRoll(AngleUnit unit) { return 0; }
+    public org.firstinspires.ftc.robotcore.external.navigation.Quaternion getQuaternion() {
+        double h = rHeading;
+        return new org.firstinspires.ftc.robotcore.external.navigation.Quaternion((float) Math.cos(h / 2), 0f, 0f, (float) Math.sin(h / 2), System.nanoTime());
+    }
     @Override public double getHeading(UnnormalizedAngleUnit unit) { return unit.fromRadians(rHeading); }
     @Override public double getVelX(DistanceUnit unit) { return unit.fromMm(rVelX); }
     @Override public double getVelY(DistanceUnit unit) { return unit.fromMm(rVelY); }

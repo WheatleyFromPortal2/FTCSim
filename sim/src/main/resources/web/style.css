@@ -86,3 +86,5 @@ h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing
 #graph { width: 100%; background: #0b0e13; border: 1px solid var(--border); border-radius: 6px; }
 #graphLegend { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--mono); font-size: 11px; margin-top: 4px; }
 @media (max-width: 1250px) { #layout { grid-template-columns: 280px 1fr 320px; } }
+
+.pill.muted { color: var(--muted); }

@@ -42,9 +42,9 @@ public class SimDcMotor extends DcMotorImplEx implements SimDevice {
         v.put("power", state.power);
         v.put("duty", state.duty());
         v.put("mode", state.mode.name());
-        v.put("direction", getDirection().name());
+        v.put("direction", state.mountSign < 0 ? "REVERSE" : "FORWARD");
         v.put("zeroPower", state.zeroPowerBehavior.name());
-        v.put("position", getCurrentPosition());
+        v.put("position", state.encoderTicks());
         v.put("velocity", state.velocityTps());
         v.put("velocityExact", state.velocityTpsExact());
         v.put("rpm", state.physicalOmega() * 60.0 / (2 * Math.PI));
